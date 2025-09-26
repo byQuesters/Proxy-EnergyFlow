@@ -1,28 +1,20 @@
 // api/data.js
 export default async function handler(req, res) {
-  // CORS headers para permitir tanto HTTP como HTTPS
+  // Permitir CORS para el Photon
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, User-Agent');
   
-  // Log para debugging
-  console.log(`🔍 Método: ${req.method}, Protocolo: ${req.headers['x-forwarded-proto'] || 'http'}`);
-  console.log('📨 Headers:', JSON.stringify(req.headers, null, 2));
-  
   // Manejar preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request manejado');
     return res.status(200).end();
   }
   
   if (req.method !== "POST") {
-    console.log(`❌ Método no permitido: ${req.method}`);
     return res.status(405).json({ error: "Método no permitido" });
   }
 
   try {
-    console.log('📦 Body recibido:', JSON.stringify(req.body, null, 2));
-    
     const data = req.body;
     
     // Validar que los datos requeridos estén presentes
@@ -34,59 +26,37 @@ export default async function handler(req, res) {
       'PPROM_A', 'PPROM_B', 'PPROM_C'
     ];
     
-    const missingFields = requiredFields.filter(field => 
-      data[field] === undefined || data[field] === null
-    );
+    const missingFields = requiredFields.filter(field => data[field] === undefined || data[field] === null);
     
     if (missingFields.length > 0) {
-      console.log(`❌ Campos faltantes: ${missingFields.join(', ')}`);
       return res.status(400).json({ 
         error: "Faltan campos requeridos", 
-        missingFields,
-        receivedFields: Object.keys(data)
+        missingFields 
       });
     }
     
-    // Validar y procesar números
+    // Validar que los números sean válidos
     const processedData = {};
-    let invalidFields = [];
-    
     requiredFields.forEach(field => {
       const value = parseFloat(data[field]);
       if (isNaN(value)) {
-        invalidFields.push(field);
         processedData[field] = 0;
       } else {
         processedData[field] = value;
       }
     });
     
-    if (invalidFields.length > 0) {
-      console.log(`⚠️ Campos con valores inválidos (convertidos a 0): ${invalidFields.join(', ')}`);
-    }
-    
     // Preparar datos para Supabase
-    const deviceId = "photon-001";
-    const timestamp = new Date().toISOString();
-    
     const supabaseData = {
-      device_id: deviceId,
-      timestamp,
+      device_id: "photon-001",
+      timestamp: new Date().toISOString(),
       ...processedData
     };
     
-    console.log('🚀 Enviando a Supabase:', JSON.stringify(supabaseData, null, 2));
-    
-    // Verificar variable de entorno
-    if (!process.env.SUPABASE_SERVICE_KEY) {
-      console.error('❌ SUPABASE_SERVICE_KEY no está configurada');
-      return res.status(500).json({ 
-        error: "Configuración del servidor incompleta" 
-      });
-    }
+    console.log('Enviando datos a Supabase:', JSON.stringify(supabaseData, null, 2));
     
     // Enviar a Supabase
-    const supabaseResponse = await fetch("https://lpjxsvasvbpwazwobcnp.supabase.co/rest/v1/ElectricalData", {
+    const resp = await fetch("https://lpjxsvasvbpwazwobcnp.supabase.co/rest/v1/ElectricalData", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -96,38 +66,27 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(supabaseData)
     });
-    
-    if (!supabaseResponse.ok) {
-      const errorText = await supabaseResponse.text();
-      console.error(`❌ Error Supabase ${supabaseResponse.status}:`, errorText);
-      return res.status(supabaseResponse.status).json({ 
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error('Error de Supabase:', resp.status, errText);
+      return res.status(resp.status).json({ 
         error: "Error al insertar en Supabase", 
-        details: errorText,
-        status: supabaseResponse.status
+        details: errText 
       });
     }
-    
-    console.log('✅ Datos insertados exitosamente en Supabase');
-    
-    // Respuesta de éxito
-    const successResponse = { 
+
+    console.log('Datos insertados exitosamente en Supabase');
+    return res.status(200).json({ 
       message: "Datos insertados correctamente en Supabase",
-      timestamp: timestamp,
-      device_id: deviceId,
-      processed_fields: requiredFields.length,
-      invalid_fields_count: invalidFields.length
-    };
-    
-    console.log('📤 Respuesta:', JSON.stringify(successResponse, null, 2));
-    
-    return res.status(200).json(successResponse);
+      timestamp: supabaseData.timestamp
+    });
     
   } catch (error) {
-    console.error('💥 Error crítico:', error);
+    console.error('Error en el proxy:', error);
     return res.status(500).json({ 
       error: "Error interno del servidor", 
-      details: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      details: error.message 
     });
   }
 }
