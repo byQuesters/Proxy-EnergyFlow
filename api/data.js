@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     console.log("Enviando a Supabase:", supabaseData);
 
-    const resp = await fetch("https://<YOUR_SUPABASE_URL>/rest/v1/ElectricalData", {
+    const resp = await fetch("https://lpjxsvasvbpwazwobcnp.supabase.co/rest/v1/ElectricalData", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
