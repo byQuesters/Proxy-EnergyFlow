@@ -118,7 +118,7 @@ export default async function handler(req, res) {
       invalid_fields_count: invalidFields.length
     };
     
-    console.log('📤 Respuestas:', JSON.stringify(successResponse, null, 2));
+    console.log('📤 Respuesta:', JSON.stringify(successResponse, null, 2));
     
     return res.status(200).json(successResponse);
     
