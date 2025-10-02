@@ -19,12 +19,12 @@ async function consolidateMonthlyData(deviceId = "photon-001") {
   try {
     const now = new Date();
     const year = now.getUTCFullYear();
-    const month = now.getUTCMonth(); // mes anterior
+    const month = now.getUTCMonth(); // mes actual
 
     const startDate = new Date(Date.UTC(year, month, 1)).toISOString();
     const endDate = new Date(Date.UTC(year, month + 1, 1)).toISOString();
 
-    // Leer datos del mes anterior
+    // Leer datos del mes
     const resp = await fetch(
       `${process.env.SUPABASE_URL}/rest/v1/ElectricalData?timestamp=gte.${startDate}&timestamp=lt.${endDate}&device_id=eq.${deviceId}`,
       {
@@ -156,16 +156,23 @@ app.post("/api/data", async (req, res) => {
 });
 
 // ======================
-// Cron mensual para ejecutar consolidación el primer día de cada mes a medianoche UTC
+// Cron mensual con protección contra overflow
 // ======================
+const MAX_TIMEOUT = 2147483647; // ~24.8 días en ms
+
 function scheduleMonthlyConsolidation() {
   const now = new Date();
   const nextMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1, 0, 0, 0));
-  const msUntilNextMonth = nextMonth - now;
+  let msUntilNextMonth = nextMonth - now;
+
+  if (msUntilNextMonth > MAX_TIMEOUT) {
+    console.warn("⏱ Timeout demasiado grande, se limitará a 24 días");
+    msUntilNextMonth = MAX_TIMEOUT;
+  }
 
   setTimeout(async () => {
     await consolidateMonthlyData();
-    scheduleMonthlyConsolidation(); // reprograma para el siguiente mes
+    scheduleMonthlyConsolidation(); // reprograma
   }, msUntilNextMonth);
 }
 
